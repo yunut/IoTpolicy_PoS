@@ -1,0 +1,63 @@
+#include <eosiolib/eosio.hpp>
+
+using namespace eosio;
+
+class [[eosio::contract("gatewaycon")]] gatewaycon : public eosio::contract {
+
+public:
+  using contract::contract;
+  
+  gatewaycon(name receiver, name code,  datastream<const char*> ds): contract(receiver, code, ds) {}
+
+  [[eosio::action]]
+  void upsert( name user, std::string iotdevice, std::string gateway, std::string request, std::string timestamp) {
+    require_auth( user );
+    attach_index attachs(_code, _code.value);
+    auto iterator = attachs.find(user.value);
+    if( iterator == attachs.end() )
+    {
+      attachs.emplace(user, [&]( auto& row ) {
+        row.key = user;
+		row.iotdevice = iotdevice;
+		row.gateway = gateway;
+		row.request = request;
+		row.timestamp = timestamp;
+      });
+    }
+    else {
+      std::string changes;
+      attachs.modify(iterator, user, [&]( auto& row ) {
+        row.key = user;
+		row.iotdevice = iotdevice;
+		row.gateway = gateway;
+		row.request = request;
+		row.timestamp = timestamp;
+      });
+    }
+  }
+
+  [[eosio::action]]
+  void erase(name user) {
+    require_auth(user);
+
+    attach_index attachs(_self, _code.value);
+
+    auto iterator = attachs.find(user.value);
+    eosio_assert(iterator != attachs.end(), "Record does not exist");
+    attachs.erase(iterator);
+  }
+
+private:
+  struct [[eosio::table]] attach {
+    name key;
+    std::string iotdevice;
+    std::string gateway;
+    std::string request;
+    std::string timestamp;
+    uint64_t primary_key() const { return key.value; }
+  };
+  typedef eosio::multi_index<"people"_n, attach> attach_index;
+
+};
+
+EOSIO_DISPATCH( gatewaycon, (upsert)(erase))
